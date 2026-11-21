@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CarTV">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>FreeCarTV</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* =========================================================
+   FreeCarTV — ธีม 3D / Neon Glass
+   แก้สีหลักได้ที่ :root (--accent, --accent2)
+   ========================================================= */
+:root{
+  --bg:#070a10; --panel:rgba(20,28,40,.72); --panel-solid:#141c28; --line:rgba(255,255,255,.08);
+  --text:#eef4fb; --muted:#8fa1b6; --accent:#2fa4ff; --accent2:#7a5cff; --ok:#33e08a; --warn:#ffb020; --bad:#ff5d6c;
+  --bar:62px; --btn:50px; --radius:14px;
+  --b-top:#2a3648; --b-bot:#161e2b; --b-edge:#0b1018;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;color:var(--text);font-family:"Sarabun",system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+body{background:var(--bg)}
+/* พื้นหลังไล่สีเคลื่อนไหว */
+body::before{content:"";position:fixed;inset:-30%;z-index:-1;
+  background:radial-gradient(40% 40% at 20% 30%,rgba(47,164,255,.22),transparent 70%),
+             radial-gradient(35% 35% at 80% 70%,rgba(122,92,255,.22),transparent 70%),
+             radial-gradient(30% 30% at 60% 10%,rgba(51,224,138,.10),transparent 70%);
+  animation:aurora 22s ease-in-out infinite alternate}
+@keyframes aurora{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(4%,-3%) rotate(8deg)}100%{transform:translate(-4%,3%) rotate(-6deg)}}
+
+/* ---------- ปุ่ม 3D ---------- */
+button{position:relative;overflow:hidden;font:inherit;font-size:17px;font-weight:600;color:var(--text);
+  min-height:var(--btn);min-width:var(--btn);padding:0 16px;border:0;border-radius:var(--radius);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:linear-gradient(180deg,var(--b-top),var(--b-bot));
+  box-shadow:0 5px 0 var(--b-edge), 0 8px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14), inset 0 -2px 6px rgba(0,0,0,.25);
+  transform:translateY(0);transition:transform .12s, box-shadow .12s, background .25s, color .25s;text-shadow:0 1px 1px rgba(0,0,0,.4)}
+button::before{content:"";position:absolute;inset:0 0 50% 0;border-radius:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.12),transparent);pointer-events:none}
+button:hover{filter:brightness(1.08)}
+button:active,button.pressed{transform:translateY(4px);
+  box-shadow:0 1px 0 var(--b-edge), 0 3px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08), inset 0 2px 6px rgba(0,0,0,.35)}
+button.on{color:#fff;background:linear-gradient(180deg,#4db6ff,#1b7fe0);
+  box-shadow:0 5px 0 #0e4f94, 0 8px 22px rgba(47,164,255,.45), inset 0 1px 0 rgba(255,255,255,.35)}
+button.on:active{box-shadow:0 1px 0 #0e4f94, 0 3px 10px rgba(47,164,255,.4), inset 0 2px 6px rgba(0,0,0,.25)}
+button.big{min-width:64px;min-height:58px;font-size:22px;border-radius:50%;
+  background:linear-gradient(180deg,#5cc0ff,#2a6cf0 60%,#5a3ef0);box-shadow:0 6px 0 #1b3f9e,0 10px 26px rgba(80,120,255,.55),inset 0 1px 0 rgba(255,255,255,.4)}
+button.big:active{box-shadow:0 1px 0 #1b3f9e,0 4px 12px rgba(80,120,255,.45)}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.35);transform:scale(0);
+  animation:ripple .55s ease-out forwards;pointer-events:none}
+@keyframes ripple{to{transform:scale(4);opacity:0}}
+
+input{font:inherit;font-size:17px;color:var(--text);background:rgba(7,10,16,.75);border:1px solid var(--line);
+  border-radius:var(--radius);height:var(--btn);padding:0 14px;min-width:0;flex:1;outline:none;
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.5);transition:border-color .2s, box-shadow .2s}
+input:focus{border-color:var(--accent);box-shadow:inset 0 3px 8px rgba(0,0,0,.5),0 0 0 3px rgba(47,164,255,.25)}
+
+/* ---------- กระจก ---------- */
+.glass{background:var(--panel);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+  border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+
+/* ---------- แถบบน ---------- */
+#topbar{height:calc(var(--bar) + env(safe-area-inset-top));display:flex;align-items:center;gap:10px;
+  padding:env(safe-area-inset-top) calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left));
+  border-width:0 0 1px 0;animation:slideDown .6s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0}}
+#clock{font-size:28px;font-weight:700;letter-spacing:1px;
+  background:linear-gradient(90deg,#fff,#9fd4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+#clock .colon{animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:.15}}
+#date{color:var(--muted);font-size:15px}
+.tb{display:flex;gap:8px;padding-bottom:4px}
+#speedBox{margin-left:auto;display:flex;align-items:center;gap:8px}
+#speedRing{position:relative;width:54px;height:54px}
+#speedRing svg{position:absolute;inset:0;transform:rotate(135deg)}
+#speedRing circle{fill:none;stroke-width:5;stroke-linecap:round}
+#speedRing .track{stroke:rgba(255,255,255,.08);stroke-dasharray:113 151}
+#speedRing .val{stroke:var(--ok);stroke-dasharray:0 151;transition:stroke-dasharray .6s ease;filter:drop-shadow(0 0 4px rgba(51,224,138,.7))}
+#speed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;
+  transition:color .4s}
+#speedUnit{color:var(--muted);font-size:13px;line-height:1.1}
+#gpsDot{width:12px;height:12px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 0 rgba(255,93,108,.6);animation:pulse 1.6s infinite}
+#gpsDot.ok{background:var(--ok);animation-name:pulseOk}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgba(255,93,108,0)}100%{box-shadow:0 0 0 0 rgba(255,93,108,0)}}
+@keyframes pulseOk{0%{box-shadow:0 0 0 0 rgba(51,224,138,.6)}70%{box-shadow:0 0 0 10px rgba(51,224,138,0)}100%{box-shadow:0 0 0 0 rgba(51,224,138,0)}}
+
+/* ---------- พื้นที่หลัก ---------- */
+#main{position:absolute;top:calc(var(--bar) + env(safe-area-inset-top));left:env(safe-area-inset-left);right:env(safe-area-inset-right);
+  bottom:env(safe-area-inset-bottom);display:flex;padding:10px;gap:0}
+#main.portrait{flex-direction:column}
+.pane{position:relative;overflow:hidden;min-width:0;min-height:0;border-radius:20px;
+  box-shadow:0 14px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06), inset 0 1px 0 rgba(255,255,255,.06);
+  transition:flex-basis .35s cubic-bezier(.2,.8,.2,1)}
+#main.dragging .pane{transition:none}
+#videoPane{background:#000;display:flex;flex-direction:column;animation:popIn .7s .1s cubic-bezier(.2,.9,.3,1.15) both}
+#mapPane{background:#111821;animation:popIn .7s .25s cubic-bezier(.2,.9,.3,1.15) both}
+@keyframes popIn{from{transform:scale(.92) translateY(20px);opacity:0}}
+#divider{flex:0 0 18px;display:flex;align-items:center;justify-content:center;cursor:col-resize;touch-action:none}
+#main.portrait #divider{cursor:row-resize}
+#divider::after{content:"";width:5px;height:56px;border-radius:3px;background:linear-gradient(180deg,var(--accent),var(--accent2));
+  box-shadow:0 0 12px rgba(47,164,255,.6);transition:transform .2s}
+#divider:active::after{transform:scale(1.3)}
+#main.portrait #divider::after{width:56px;height:5px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+#main.only-video #mapPane,#main.only-map #videoPane,#main.only-video #divider,#main.only-map #divider{display:none}
+#main.only-video #videoPane,#main.only-map #mapPane{flex:1 1 auto!important;animation:popIn .45s cubic-bezier(.2,.9,.3,1.15) both}
+
+/* ---------- วิดีโอ ---------- */
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+#stage video,#stage iframe{width:100%;height:100%;border:0;background:#000;object-fit:contain}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;color:var(--muted);text-align:center;padding:20px;
+  background:radial-gradient(60% 60% at 50% 40%,rgba(47,164,255,.14),transparent 70%)}
+#empty .ico{font-size:56px;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 10px 18px rgba(47,164,255,.5))}
+@keyframes float{50%{transform:translateY(-10px) rotate(-4deg)}}
+#empty b{color:var(--text);font-size:21px}
+#vctl{display:flex;gap:8px;padding:10px 10px 14px;flex-wrap:wrap;align-items:center;border-width:1px 0 0 0;border-radius:0}
+#nowTitle{flex:1 1 120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:15px;padding:0 6px}
+#nowTitle.playing{color:var(--text)}
+#eq{display:none;gap:3px;align-items:flex-end;height:18px;margin-left:4px}
+#eq.on{display:flex}
+#eq i{width:4px;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:2px;animation:eq 1s ease-in-out infinite}
+#eq i:nth-child(2){animation-delay:-.3s}#eq i:nth-child(3){animation-delay:-.6s}#eq i:nth-child(4){animation-delay:-.15s}
+@keyframes eq{0%,100%{height:4px}50%{height:18px}}
+#progress{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.08);z-index:2}
+#progress div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent)}
+
+/* ---------- YouTube ---------- */
+#ytTop{display:flex;gap:8px;padding:8px;border-width:0 0 1px 0;border-radius:0;align-items:center}
+#chips{display:flex;gap:8px;padding:8px 10px;overflow-x:auto;scrollbar-width:none;background:rgba(7,10,16,.6);flex:0 0 auto}
+#chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:7px 14px;border-radius:20px;font-size:15px;cursor:pointer;white-space:nowrap;
+  background:linear-gradient(180deg,#263245,#18202d);box-shadow:0 3px 0 #0b1018,inset 0 1px 0 rgba(255,255,255,.1);
+  transition:transform .12s, box-shadow .12s;animation:slideIn .4s both}
+.chip:active{transform:translateY(3px);box-shadow:0 0 0 #0b1018}
+.chip.recent::before{content:"🕘 "}
+#ytWrap{position:absolute;inset:0;background:#000}
+#ytWrap iframe,#ytPlayer{width:100%;height:100%;border:0}
+#ytList{position:absolute;inset:0;overflow-y:auto;padding:10px;display:none;z-index:5;
+  background:radial-gradient(80% 60% at 50% 0%,rgba(47,164,255,.10),transparent 70%),#0a0e15;
+  grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;grid-auto-rows:max-content;align-content:start;-webkit-overflow-scrolling:touch}
+#ytList.show{display:grid;animation:fade .25s}
+#ytList h4{grid-column:1/-1;margin:2px 4px;color:var(--muted);font-weight:600}
+.yc{cursor:pointer;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#1a2332,#121924);
+  box-shadow:0 6px 0 #070b11,0 10px 22px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .15s, box-shadow .15s;animation:cardUp .45s both}
+@keyframes cardUp{from{transform:translateY(24px) scale(.95);opacity:0}}
+.yc:active{transform:translateY(5px) scale(.98);box-shadow:0 1px 0 #070b11,0 4px 10px rgba(0,0,0,.4)}
+.yc.cur{outline:2px solid var(--accent);box-shadow:0 6px 0 #0e4f94,0 0 24px rgba(47,164,255,.5)}
+.yc .th{position:relative;aspect-ratio:16/9;background:#000 center/cover no-repeat}
+.yc .th::after{content:"▶";position:absolute;inset:0;margin:auto;width:46px;height:46px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;
+  background:linear-gradient(180deg,rgba(92,192,255,.9),rgba(90,62,240,.9));box-shadow:0 6px 18px rgba(0,0,0,.5);
+  opacity:0;transform:scale(.6);transition:.2s}
+.yc:hover .th::after,.yc:active .th::after,.yc.cur .th::after{opacity:1;transform:scale(1)}
+.yc .live{position:absolute;left:8px;top:8px;background:#ff3b4e;color:#fff;font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px}
+.yc .tt{padding:8px 10px 2px;font-size:15px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.yc .ch{padding:0 10px 10px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.skel{border-radius:14px;aspect-ratio:16/12;background:linear-gradient(90deg,#141b27 25%,#1f2a3a 50%,#141b27 75%);
+  background-size:200% 100%;animation:shine 1.2s linear infinite}
+#keyCard{position:absolute;inset:12px;z-index:6;border-radius:18px;padding:16px;overflow:auto;display:none;font-size:15px}
+#keyCard.show{display:block;animation:popIn .4s cubic-bezier(.2,.9,.3,1.2)}
+#keyCard ol{padding-left:22px;line-height:1.7;margin:10px 0}
+#keyCard a{color:#7fd0ff}
+#keyCard .desc{color:var(--muted);font-size:14px}
+@media (max-height:500px){#ytTop{padding:5px 6px}#chips{padding:5px 8px}.chip{padding:5px 12px;font-size:14px}
+  #ytList{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:9px;padding:8px}
+  .yc{display:grid;grid-template-columns:128px 1fr;grid-template-rows:auto 1fr;box-shadow:0 4px 0 #070b11,0 6px 14px rgba(0,0,0,.45)}
+  .yc .th{grid-row:1/3;border-radius:12px 0 0 12px}
+  .yc .th::after{width:34px;height:34px;font-size:14px}
+  .yc .tt{font-size:14px;padding:6px 10px 0}.yc .ch{padding:2px 10px 6px;font-size:12px}
+  .skel{aspect-ratio:auto;height:72px}}
+
+/* ---------- แผนที่ ---------- */
+#map{position:absolute;inset:0;transition:transform .8s ease}
+.mapbtns{position:absolute;right:12px;top:12px;z-index:500;display:flex;flex-direction:column;gap:12px}
+#searchBar{position:absolute;left:12px;top:12px;right:80px;z-index:500;display:flex;gap:8px;padding:6px;border-radius:18px}
+#results{position:absolute;left:12px;top:76px;right:80px;z-index:600;border-radius:var(--radius);max-height:50%;overflow:auto;display:none;
+  animation:drop .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes drop{from{transform:translateY(-10px) scale(.97);opacity:0}}
+#results div{padding:13px 15px;border-bottom:1px solid var(--line);font-size:16px;cursor:pointer;transition:background .15s, padding .15s}
+#results div:active{background:rgba(47,164,255,.2);padding-left:22px}
+#routeInfo{position:absolute;left:12px;bottom:12px;z-index:500;border-radius:18px;padding:12px 16px;display:none;
+  align-items:center;gap:14px;max-width:calc(100% - 24px);animation:popIn .45s cubic-bezier(.2,.9,.3,1.2)}
+#routeInfo .big{font-size:24px;font-weight:700;background:linear-gradient(90deg,#7fd0ff,#a58cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+#routeInfo .step{font-size:15px;color:var(--text);max-width:300px}
+.leaflet-container{background:#111821;font-family:inherit}
+.leaflet-control-attribution{background:rgba(7,10,16,.6)!important;color:var(--muted)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--muted)!important}
+.car-icon{transition:transform .5s ease}
+.car-icon svg{overflow:visible}
+.car-halo{transform-origin:22px 22px;animation:halo 2s ease-out infinite}
+@keyframes halo{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+.route-flow{stroke-dasharray:14 18;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-32}}
+
+/* ---------- หน้าต่าง ---------- */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  z-index:2000;display:none;align-items:center;justify-content:center}
+.modal.show{display:flex;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}}
+.modal.show .card{animation:cardIn .4s cubic-bezier(.2,.9,.3,1.25)}
+@keyframes cardIn{from{transform:perspective(800px) rotateX(18deg) translateY(30px) scale(.9);opacity:0}}
+.card{background:rgba(20,28,40,.92)!important;border-radius:22px;padding:20px;width:min(580px,94vw);max-height:88vh;overflow:auto}
+.card h3{margin:0 0 12px;font-size:21px}
+.row{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap;align-items:center}
+.row label{color:var(--muted);min-width:175px}
+#playlist{margin-top:10px}
+#playlist div{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;cursor:pointer;font-size:16px;
+  animation:slideIn .35s both;transition:background .2s}
+#playlist div.cur{background:linear-gradient(90deg,rgba(47,164,255,.25),rgba(122,92,255,.12));color:#9fd4ff}
+#playlist div span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@keyframes slideIn{from{transform:translateX(-16px);opacity:0}}
+#toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  padding:12px 20px;border-radius:26px;z-index:3000;display:none;font-size:16px;max-width:90vw;text-align:center}
+#toast.show{display:block;animation:toastIn .4s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes toastIn{from{transform:translate(-50%,30px) scale(.9);opacity:0}}
+/* ฉากเปิดโปรแกรม */
+#splash{position:fixed;inset:0;z-index:5000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:radial-gradient(circle at 50% 45%,#13233a,#05070b 70%);transition:opacity .6s, visibility .6s}
+#splash.hide{opacity:0;visibility:hidden}
+#splash .logo{font-size:46px;font-weight:700;letter-spacing:2px;
+  background:linear-gradient(90deg,#7fd0ff,#a58cff,#7fd0ff);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shine 1.6s linear infinite, popIn .8s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes shine{to{background-position:-200% 0}}
+#splash .bar{width:180px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+#splash .bar i{display:block;height:100%;width:40%;background:linear-gradient(90deg,var(--accent),var(--accent2));animation:load 1s ease-in-out infinite}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+/* จอเตี้ย เช่น iPhone แนวนอน */
+@media (max-height:500px){
+  :root{--bar:52px;--btn:42px}
+  #main{padding:6px}
+  #vctl{flex-wrap:nowrap;padding:6px 8px 9px;gap:6px}
+  #vctl button{padding:0 10px;font-size:15px}
+  button.big{min-width:52px;min-height:48px;font-size:19px}
+  #nowTitle{flex:1 1 40px}
+  #empty{gap:6px}#empty .ico{font-size:34px}#empty .desc{display:none}#empty b{font-size:18px}
+  #speedRing{width:46px;height:46px}#speed{font-size:16px}
+  .mapbtns{gap:9px}
+}
+@media (max-width:700px){.hide-s{display:none}#clock{font-size:22px}button{padding:0 12px}}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+
+<div id="splash"><div class="logo">FreeCarTV</div><div class="bar"><i></i></div></div>
+
+<div id="topbar" class="glass">
+  <div id="clock">--:--</div>
+  <div id="date" class="hide-s"></div>
+  <div class="tb">
+    <button id="btnLayout" title="สลับโหมดจอ">◧ แบ่งจอ</button>
+    <button id="btnSwap" title="สลับซ้าย/ขวา">⇄</button>
+    <button id="btnFull" title="เต็มจอ">⛶</button>
+    <button id="btnSettings" title="ตั้งค่า">⚙</button>
+  </div>
+  <div id="speedBox">
+    <div id="speedRing"><svg viewBox="0 0 54 54"><defs><linearGradient id="spdGrad"><stop offset="0" stop-color="#33e08a"/><stop offset=".6" stop-color="#ffb020"/><stop offset="1" stop-color="#ff5d6c"/></linearGradient></defs>
+      <circle class="track" cx="27" cy="27" r="24"/><circle class="val" id="spdArc" cx="27" cy="27" r="24"/></svg><div id="speed">0</div></div>
+    <div id="speedUnit">กม./<br>ชม.</div><span id="gpsDot"></span></div>
+</div>
+
+<div id="main">
+  <section id="videoPane" class="pane">
+    <div id="ytTop" class="glass">
+      <button id="btnHomeYT" onclick="YT_.home()" title="วิดีโอยอดนิยม">🏠</button>
+      <input id="ytQ" placeholder="ค้นหา YouTube…" enterkeyhint="search" autocomplete="off">
+      <button class="on" onclick="YT_.search()">🔍</button>
+    </div>
+    <div id="chips"></div>
+    <div id="stage">
+      <div id="ytWrap"><div id="ytPlayer"></div></div>
+      <div id="ytList"></div>
+      <div id="empty">
+        <div class="ico">▶️</div><b>ค้นหาแล้วแตะคลิปเพื่อเล่นได้เลย</b>
+        <div class="desc">พิมพ์ชื่อเพลง/รายการที่ช่องค้นหาด้านบน หรือวางลิงก์ YouTube</div>
+      </div>
+      <div id="keyCard" class="glass">
+        <b>🔑 ใส่ YouTube API Key (ฟรี) ครั้งเดียว</b>
+        <ol>
+          <li>เข้า <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">console.cloud.google.com</a> (ใช้บัญชี Google)</li>
+          <li>สร้างโปรเจกต์ → กด <b>Enable</b> YouTube Data API v3</li>
+          <li>เมนู Credentials → <b>Create credentials → API key</b> → คัดลอกมาวาง</li>
+        </ol>
+        <div class="row"><input id="ytKeyIn" placeholder="วาง API Key ที่นี่ (AIza…)"><button class="on" onclick="YT_.saveKey('ytKeyIn')">บันทึก</button></div>
+        <div class="desc">ระหว่างนี้วางลิงก์ YouTube ในช่องค้นหาเพื่อเล่นได้เลย</div>
+      </div>
+    </div>
+    <div id="progress"><div id="progBar"></div></div>
+    <div id="vctl" class="glass">
+      <button onclick="YT_.prev()">⏮</button>
+      <button id="btnPlay" class="big" onclick="YT_.toggle()">▶</button>
+      <button onclick="YT_.next()">⏭</button>
+      <button id="btnMute" onclick="YT_.mute()">🔊</button>
+      <div id="eq"><i></i><i></i><i></i><i></i></div><div id="nowTitle">—</div>
+      <button id="btnList" onclick="YT_.showList()" title="ผลการค้นหา">☰</button>
+    </div>
+  </section>
+
+  <div id="divider"></div>
+
+  <section id="mapPane" class="pane">
+    <div id="map"></div>
+    <div id="searchBar" class="glass">
+      <input id="searchInput" placeholder="ค้นหาสถานที่ / ปลายทาง" enterkeyhint="search">
+      <button onclick="App.search()">🔍</button>
+    </div>
+    <div id="results" class="glass"></div>
+    <div class="mapbtns">
+      <button id="btnFollow" class="on" onclick="App.toggleFollow()" title="ตามตำแหน่งรถ">◎</button>
+      <button onclick="App.zoom(1)">＋</button>
+      <button onclick="App.zoom(-1)">－</button>
+      <button id="btnTiles" onclick="App.cycleTiles()" title="เปลี่ยนแบบแผนที่">🗺</button>
+    </div>
+    <div id="routeInfo" class="glass">
+      <div><div class="big" id="rDist">-</div><div style="color:var(--muted)" id="rTime">-</div></div>
+      <div class="step" id="rStep"></div>
+      <button onclick="App.clearRoute()">✕</button>
+    </div>
+  </section>
+</div>
+
+<!-- ตั้งค่า -->
+<div class="modal" id="setModal">
+  <div class="card glass">
+    <h3>⚙ ตั้งค่า</h3>
+    <div class="row"><label>แผนที่</label>
+      <button data-tile="dark">มืด</button><button data-tile="osm">ปกติ</button><button data-tile="sat">ดาวเทียม</button></div>
+    <div class="row"><label>YouTube API Key</label><input id="ytKeySet" placeholder="AIza…"><button class="on" onclick="YT_.saveKey('ytKeySet')">บันทึก</button></div>
+    <div class="row"><label>หมุนแผนที่ตามทิศรถ</label><button id="btnRotate" onclick="App.toggleHeadingUp()">ปิด</button></div>
+    <div class="row"><label>เปิดจอค้างไว้</label><button id="btnWake" onclick="App.toggleWake()">ปิด</button></div>
+    <div class="row"><label>หยุดวิดีโอเมื่อรถวิ่ง</label><button id="btnSafe" onclick="App.toggleSafe()">ปิด</button>
+      <span style="color:var(--muted);font-size:14px">(เกิน 10 กม./ชม. วิดีโอหยุดอัตโนมัติ)</span></div>
+    <div class="row"><label>จำลอง GPS (ทดสอบ)</label><button id="btnSim" onclick="App.toggleSim()">ปิด</button></div>
+    <div class="row"><label>ตำแหน่งเริ่มต้น</label><button onclick="App.setHome()">ตั้งจากตำแหน่งตอนนี้</button></div>
+    <div style="color:var(--muted);font-size:14px;margin-top:8px">FreeCarTV v1.0 — โอเพนซอร์ส ใช้แผนที่ © OpenStreetMap, ค้นหา Nominatim, นำทาง OSRM</div>
+    <div class="row"><button onclick="App.closeModal('setModal')">ปิด</button></div>
+  </div>
+</div>
+
+<div id="toast" class="glass"></div>
+
+<script>
+/* =========================================================
+   FreeCarTV — โค้ดหลัก (แยกเป็นโมดูลย่อยใน object App)
+   - Store   : จำค่าตั้ง (localStorage)
+   - Layout  : แบ่งจอ / ลากปรับขนาด / สลับ
+   - Player  : วิดีโอ + เพลย์ลิสต์ (ไฟล์, MP4, HLS, YouTube)
+   - Nav     : แผนที่ GPS ค้นหา นำทาง
+   ========================================================= */
+const $ = id => document.getElementById(id);
+
+const Store = {
+  get(k, d){ try{ const v = localStorage.getItem('fctv.'+k); return v===null ? d : JSON.parse(v);}catch(e){return d;} },
+  set(k, v){ try{ localStorage.setItem('fctv.'+k, JSON.stringify(v)); }catch(e){} }
+};
+
+const TILES = {
+  dark:{url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr:'© OpenStreetMap © CARTO', max:20},
+  osm:{url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr:'© OpenStreetMap', max:19},
+  sat:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr:'© Esri', max:19}
+};
+
+/* =========================================================
+   YT_ — YouTube: ค้นหา (YouTube Data API v3) + เล่น (IFrame API)
+   ========================================================= */
+const YT_ = {
+  key: Store.get('ytKey',''), list:[], cur:-1, player:null, ready:false, pending:null,
+  recent: Store.get('ytRecent',[]),
+  presets:['เพลงฮิต 2026','เพลงลูกทุ่ง','ข่าวล่าสุด','ตลก','เพลงสากล','เพลงชิลขับรถ','พอดแคสต์','การ์ตูน'],
+
+  init(){
+    $('ytQ').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); this.search(); } });
+    this.renderChips();
+    const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api';
+    s.onerror=()=>App.toast('โหลด YouTube ไม่ได้ (ไม่มีอินเทอร์เน็ต?)'); document.head.appendChild(s);
+    window.onYouTubeIframeAPIReady=()=>{
+      this.player=new YT.Player('ytPlayer',{ width:'100%', height:'100%',
+        playerVars:{playsinline:1, rel:0, modestbranding:1, iv_load_policy:3, fs:1},
+        events:{
+          onReady:()=>{ this.ready=true; if(this.pending){ const id=this.pending; this.pending=null; this.load(id); } },
+          onStateChange:e=>this.onState(e.data),
+          onError:e=>{ App.toast('คลิปนี้ไม่อนุญาตให้เล่นนอก YouTube — ข้ามไปคลิปถัดไป'); setTimeout(()=>this.next(),1200); }
+        }});
+    };
+    setInterval(()=>this.tick(),500);
+    if(this.key) this.home(); else { $('keyCard').classList.add('show'); $('empty').style.display='none'; }
+  },
+
+  /* ---------- ค้นหา ---------- */
+  ytId(u){ const m=u.match(/(?:youtu\.be\/|v=|embed\/|shorts\/|live\/)([\w-]{11})/); return m?m[1]:null; },
+  async api(path, params){
+    const qs=new URLSearchParams({...params, key:this.key}).toString();
+    const r=await fetch('https://www.googleapis.com/youtube/v3/'+path+'?'+qs);
+    const j=await r.json();
+    if(j.error){ const why=(j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason)||''; throw new Error(why||j.error.message); }
+    return j;
+  },
+  async search(q){
+    q=(q!==undefined?q:$('ytQ').value).trim(); if(!q) return;
+    $('ytQ').value=q; $('ytQ').blur();
+    const id=this.ytId(q);
+    if(id){ this.list=[{id,title:'YouTube',ch:'',th:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]; this.play(0); return; }
+    if(!this.key){ $('keyCard').classList.add('show'); App.toast('ต้องใส่ API Key ก่อนค้นหา'); return; }
+    this.recent=[q,...this.recent.filter(x=>x!==q)].slice(0,8); Store.set('ytRecent',this.recent); this.renderChips();
+    this.skeleton('ผลการค้นหา: '+q);
+    try{
+      const j=await this.api('search',{part:'snippet',type:'video',videoEmbeddable:'true',maxResults:25,regionCode:'TH',relevanceLanguage:'th',safeSearch:'moderate',q});
+      this.setList(j.items.map(it=>({id:it.id.videoId,title:this.dec(it.snippet.title),ch:this.dec(it.snippet.channelTitle),
+        th:(it.snippet.thumbnails.high||it.snippet.thumbnails.medium||it.snippet.thumbnails.default).url,live:it.snippet.liveBroadcastContent==='live'})),'ผลการค้นหา: '+q);
+    }catch(e){ this.err(e); }
+  },
+  async home(){
+    if(!this.key){ $('keyCard').classList.add('show'); return; }
+    this.skeleton('🔥 ยอดนิยมในไทย');
+    try{
+      const j=await this.api('videos',{part:'snippet',chart:'mostPopular',regionCode:'TH',maxResults:25});
+      this.setList(j.items.map(it=>({id:it.id,title:this.dec(it.snippet.title),ch:it.snippet.channelTitle,
+        th:(it.snippet.thumbnails.high||it.snippet.thumbnails.medium).url})),'🔥 ยอดนิยมในไทย');
+    }catch(e){ this.err(e); }
+  },
+  err(e){
+    const m=String(e.message||e);
+    const t= /quota/i.test(m)?'โควตาค้นหาวันนี้หมดแล้ว (รีเซ็ตทุกวันตอน 14:00 น.) — วางลิงก์เพื่อเล่นได้'
+      : /key|API_KEY|badRequest/i.test(m)?'API Key ไม่ถูกต้อง ตรวจสอบในหน้าตั้งค่า'
+      : /Failed to fetch|NetworkError/i.test(m)?'ค้นหาไม่ได้ (ไม่มีอินเทอร์เน็ต?)' : 'ค้นหาไม่ได้: '+m;
+    $('ytList').innerHTML=`<h4>⚠️ ${t}</h4>`; App.toast(t,4000);
+    if(/key/i.test(m)) $('keyCard').classList.add('show');
+  },
+  dec(s){ const t=document.createElement('textarea'); t.innerHTML=s; return t.value; },
+  skeleton(title){
+    $('empty').style.display='none'; $('keyCard').classList.remove('show');
+    const L=$('ytList'); L.innerHTML=`<h4>${title}</h4>`+'<div class="skel"></div>'.repeat(6); this.showList(true);
+  },
+  setList(items, title){
+    this.list=items; this.cur=-1;
+    const L=$('ytList'); L.innerHTML=''; const h=document.createElement('h4'); h.textContent=title; L.appendChild(h);
+    if(!items.length){ h.textContent+=' — ไม่พบคลิป'; return; }
+    items.forEach((it,i)=>{
+      const c=document.createElement('div'); c.className='yc'; c.style.animationDelay=(Math.min(i,12)*45)+'ms';
+      c.innerHTML=`<div class="th">${it.live?'<span class="live">● LIVE</span>':''}</div><div class="tt"></div><div class="ch"></div>`;
+      c.querySelector('.th').style.backgroundImage=`url("${it.th}")`;
+      c.querySelector('.tt').textContent=it.title; c.querySelector('.ch').textContent=it.ch;
+      c.onclick=()=>this.play(i); L.appendChild(c);
+    });
+    this.showList(true);
+  },
+  renderChips(){
+    const C=$('chips'); C.innerHTML='';
+    [...this.recent.map(q=>[q,true]), ...this.presets.filter(p=>!this.recent.includes(p)).map(q=>[q,false])].forEach(([q,r],i)=>{
+      const d=document.createElement('div'); d.className='chip'+(r?' recent':''); d.textContent=q; d.style.animationDelay=(i*40)+'ms';
+      d.onclick=()=>this.search(q); C.appendChild(d);
+    });
+  },
+  showList(force){
+    const L=$('ytList'); const show = force===true ? true : !L.classList.contains('show');
+    if(show && !L.children.length){ if(this.key) this.home(); else $('keyCard').classList.add('show'); return; }
+    L.classList.toggle('show',show); $('btnList').classList.toggle('on',show);
+  },
+  saveKey(inputId){
+    const k=$(inputId).value.trim(); if(!/^AIza[\w-]{30,}$/.test(k)) return App.toast('รูปแบบ Key ไม่ถูกต้อง (ต้องขึ้นต้นด้วย AIza)');
+    this.key=k; Store.set('ytKey',k); $('keyCard').classList.remove('show'); App.closeModal('setModal'); App.toast('บันทึก API Key แล้ว'); this.home();
+  },
+
+  /* ---------- เล่น ---------- */
+  play(i){
+    if(i<0||i>=this.list.length) return;
+    this.cur=i; const it=this.list[i];
+    $('empty').style.display='none'; $('keyCard').classList.remove('show');
+    document.querySelectorAll('.yc').forEach((c,k)=>c.classList.toggle('cur',k===i));
+    $('nowTitle').textContent=it.title; this.showList(false);
+    this.load(it.id);
+  },
+  load(id){
+    if(!this.ready){ this.pending=id; App.toast('กำลังเตรียมตัวเล่น…'); return; }
+    this.player.loadVideoById(id);
+    clearTimeout(this._chk);
+    this._chk=setTimeout(()=>{ const s=this.player.getPlayerState&&this.player.getPlayerState(); if(s===-1||s===5) App.toast('แตะที่วิดีโอ 1 ครั้งเพื่อเริ่มเล่น',3500); },2500);
+  },
+  onState(s){
+    const on=s===1; $('btnPlay').textContent=on?'⏸':'▶'; $('eq').classList.toggle('on',on); $('nowTitle').classList.toggle('playing',on);
+    if(s===0) this.next();
+  },
+  tick(){
+    if(!this.ready||!this.player.getDuration) return;
+    const d=this.player.getDuration(), t=this.player.getCurrentTime();
+    $('progBar').style.width = d>0 ? (t/d*100)+'%' : '0';
+  },
+  toggle(){
+    if(!this.ready||this.cur<0){ if(this.list.length) this.play(0); else $('ytQ').focus(); return; }
+    this.player.getPlayerState()===1 ? this.player.pauseVideo() : this.player.playVideo();
+  },
+  pause(){ if(this.ready && this.player.getPlayerState()===1){ this.player.pauseVideo(); return true; } return false; },
+  next(){ if(this.list.length) this.play((this.cur+1)%this.list.length); },
+  prev(){ if(this.ready && this.player.getCurrentTime()>5) return this.player.seekTo(0,true); if(this.list.length) this.play((this.cur-1+this.list.length)%this.list.length); },
+  mute(){ if(!this.ready) return; if(this.player.isMuted()){ this.player.unMute(); $('btnMute').textContent='🔊'; } else { this.player.mute(); $('btnMute').textContent='🔇'; } },
+  seek(frac){ if(this.ready){ const d=this.player.getDuration(); if(d>0) this.player.seekTo(d*frac,true); } }
+};
+
+
+const App = {
+  /* ---------------- state ---------------- */
+  layout: Store.get('layout','split'),   // split | only-video | only-map
+  swapped: Store.get('swapped', false),
+  ratio: Store.get('ratio', 0.5),
+  tile: Store.get('tile','dark'),
+  headingUp: Store.get('headingUp', false),
+  
+  follow:true, pos:null, heading:0, wakeLock:null, wantWake: Store.get('wake', true),
+  sim:null, hls:null, route:null, routeSteps:[], safe: Store.get('safe', false),
+
+  init(){
+    this.initClock(); this.initLayout(); YT_.init();
+    $('progress').onclick=e=>{ const r=e.currentTarget.getBoundingClientRect(); YT_.seek((e.clientX-r.left)/r.width); };
+    // ถ้าไม่มีเน็ต/โหลดแผนที่ไม่ได้ ส่วนวิดีโอยังใช้ได้ตามปกติ
+    if(window.L){ try{ this.initMap(); this.initGPS(); }catch(e){ console.error(e); } }
+    else { $('map').innerHTML='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);padding:20px;text-align:center">🗺 โหลดแผนที่ไม่ได้<br>ตรวจสอบอินเทอร์เน็ตแล้วเปิดใหม่</div>'; }
+    this.applyButtons();
+    if(this.wantWake) this.requestWake();
+    document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && this.wantWake) this.requestWake(); });
+    document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('show'); }));
+    document.querySelectorAll('[data-tile]').forEach(b=>b.onclick=()=>this.setTiles(b.dataset.tile));
+  },
+
+  toast(msg, ms=2200){ const t=$('toast'); t.textContent=msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); clearTimeout(this._tt); this._tt=setTimeout(()=>t.classList.remove('show'),ms); },
+  openModal(id){ $(id).classList.add('show'); if(id==='setModal') $('ytKeySet').value=YT_.key; },
+  closeModal(id){ $(id).classList.remove('show'); },
+
+  /* ---------------- นาฬิกา ---------------- */
+  initClock(){
+    const tick=()=>{ const d=new Date();
+      const hm=d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}).split(':');
+      $('clock').innerHTML=hm[0]+'<span class="colon">:</span>'+hm[1];
+      $('date').textContent=d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'}); };
+    tick(); setInterval(tick, 10000);
+  },
+
+  /* ---------------- Layout ---------------- */
+  initLayout(){
+    const main=$('main'), div=$('divider');
+    const portrait=()=>window.innerHeight > window.innerWidth*1.1;
+    this.applyLayout=()=>{
+      main.classList.toggle('portrait', portrait());
+      main.classList.remove('only-video','only-map');
+      if(this.layout!=='split') main.classList.add(this.layout);
+      const first=this.swapped?$('mapPane'):$('videoPane'), second=this.swapped?$('videoPane'):$('mapPane');
+      main.append(first, div, second);
+      first.style.flex=`0 0 calc(${this.ratio*100}% - 7px)`; second.style.flex='1 1 auto';
+      $('btnLayout').textContent = {split:'◧ แบ่งจอ','only-video':'▣ วิดีโอ','only-map':'▣ แผนที่'}[this.layout];
+      setTimeout(()=>this.map && this.map.invalidateSize(), 400);
+    };
+    let drag=false;
+    div.addEventListener('pointerdown',e=>{drag=true;main.classList.add('dragging');div.setPointerCapture(e.pointerId);});
+    div.addEventListener('pointermove',e=>{
+      if(!drag) return; const r=main.getBoundingClientRect();
+      let v = main.classList.contains('portrait') ? (e.clientY-r.top)/r.height : (e.clientX-r.left)/r.width;
+      this.ratio=Math.min(.8,Math.max(.2,v)); this.applyLayout();
+    });
+    div.addEventListener('pointerup',()=>{drag=false;main.classList.remove('dragging');Store.set('ratio',this.ratio);});
+    div.addEventListener('dblclick',()=>{this.ratio=.5;Store.set('ratio',.5);this.applyLayout();});
+    window.addEventListener('resize',()=>this.applyLayout());
+    $('btnLayout').onclick=()=>{ const o=['split','only-video','only-map']; this.layout=o[(o.indexOf(this.layout)+1)%3]; Store.set('layout',this.layout); this.applyLayout(); };
+    $('btnSwap').onclick=()=>{ this.swapped=!this.swapped; Store.set('swapped',this.swapped); this.applyLayout(); };
+    $('btnFull').onclick=()=>{
+      const d=document.documentElement;
+      if(d.requestFullscreen){ document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen().catch(()=>{}); return; }
+      // iPhone: Safari ไม่มีเต็มจอสำหรับหน้าเว็บ → ใช้ "เพิ่มไปยังหน้าจอโฮม"
+      if(navigator.standalone) this.toast('เปิดแบบแอปเต็มจออยู่แล้ว');
+      else this.toast('iPhone: กดปุ่มแชร์ ⬆ → "เพิ่มไปยังหน้าจอโฮม" แล้วเปิดจากไอคอน จะเต็มจอเหมือนแอป', 6000);
+    };
+    $('btnSettings').onclick=()=>this.openModal('setModal');
+    this.applyLayout();
+  },
+
+  /* ---------------- แผนที่ ---------------- */
+  initMap(){
+    const home=Store.get('home',[13.7563,100.5018]); // กรุงเทพฯ
+    this.map=L.map('map',{zoomControl:false, attributionControl:true}).setView(home, 15);
+    this.setTiles(this.tile, true);
+    const icon=L.divIcon({className:'', iconSize:[44,44], iconAnchor:[22,22],
+      html:`<div class="car-icon" id="carArrow" style="width:44px;height:44px">
+        <svg viewBox="0 0 44 44" width="44" height="44"><circle class="car-halo" cx="22" cy="22" r="20" fill="rgba(47,164,255,.35)"/><circle cx="22" cy="22" r="16" fill="rgba(47,164,255,.2)"/>
+        <path d="M22 6 L33 34 L22 28 L11 34 Z" fill="#2fa4ff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg></div>`});
+    this.car=L.marker(home,{icon, interactive:false, zIndexOffset:1000}).addTo(this.map);
+    this.map.on('dragstart',()=>{ this.follow=false; this.applyButtons(); });
+    this.map.on('contextmenu',e=>this.routeTo(e.latlng,'จุดที่เลือก')); // กดค้างบนแผนที่ = นำทางไปจุดนั้น
+    $('searchInput').addEventListener('keydown',e=>{ if(e.key==='Enter') this.search(); });
+  },
+  setTiles(k, first){
+    this.tile=k; Store.set('tile',k);
+    if(this.tileLayer) this.map.removeLayer(this.tileLayer);
+    const t=TILES[k]; this.tileLayer=L.tileLayer(t.url,{attribution:t.attr,maxZoom:t.max,subdomains:'abcd'}).addTo(this.map);
+    document.querySelectorAll('[data-tile]').forEach(b=>b.classList.toggle('on',b.dataset.tile===k));
+    if(!first) this.toast('แผนที่: '+{dark:'มืด',osm:'ปกติ',sat:'ดาวเทียม'}[k]);
+  },
+  cycleTiles(){ const o=Object.keys(TILES); this.setTiles(o[(o.indexOf(this.tile)+1)%o.length]); },
+  zoom(d){ this.map.setZoom(this.map.getZoom()+d); },
+  toggleFollow(){ this.follow=!this.follow; if(this.follow && this.pos) this.map.setView(this.pos, Math.max(this.map.getZoom(),16)); this.applyButtons(); },
+  toggleHeadingUp(){ this.headingUp=!this.headingUp; Store.set('headingUp',this.headingUp); this.applyButtons(); this.updateRotation(); },
+  updateRotation(){
+    // หมุนทั้งแผนที่ (แบบง่าย) เมื่อเปิดโหมดหัวรถชี้ขึ้น
+    const m=$('map'), a=$('carArrow');
+    if(this.headingUp){ m.style.transform=`rotate(${-this.heading}deg) scale(1.45)`; if(a) a.style.transform='rotate(0deg)'; }
+    else { m.style.transform=''; if(a) a.style.transform=`rotate(${this.heading}deg)`; }
+  },
+  setHome(){ if(!this.pos) return this.toast('ยังไม่มีตำแหน่ง GPS'); Store.set('home',[this.pos.lat,this.pos.lng]); this.toast('บันทึกตำแหน่งเริ่มต้นแล้ว'); },
+
+  /* ---------------- GPS ---------------- */
+  initGPS(){
+    if(!navigator.geolocation){ this.toast('อุปกรณ์นี้ไม่มี GPS'); return; }
+    navigator.geolocation.watchPosition(p=>{ if(!this.sim) this.onPos(p.coords.latitude,p.coords.longitude,p.coords.speed,p.coords.heading); },
+      err=>{ $('gpsDot').classList.remove('ok'); if(err.code===1) this.toast('กรุณาอนุญาตการเข้าถึงตำแหน่ง', 4000); },
+      {enableHighAccuracy:true, maximumAge:1000, timeout:15000});
+  },
+  onPos(lat,lng,speed,heading){
+    const p=L.latLng(lat,lng);
+    if(this.pos && (heading==null || isNaN(heading))){ // คำนวณทิศเองถ้า GPS ไม่ให้มา
+      if(this.pos.distanceTo(p)>3) heading=this.bearing(this.pos,p); else heading=this.heading;
+    }
+    if(this.pos && (speed==null||isNaN(speed)) && this._lastT){ speed=this.pos.distanceTo(p)/((Date.now()-this._lastT)/1000); }
+    this._lastT=Date.now(); this.pos=p; this.heading=heading||0;
+    $('gpsDot').classList.add('ok');
+    const kmh=Math.round((speed||0)*3.6); $('speed').textContent=kmh;
+    $('spdArc').style.strokeDasharray=(Math.min(kmh,160)/160*113)+' 151';
+    const sc = kmh>120?'var(--bad)':kmh>90?'var(--warn)':'var(--ok)'; $('speed').style.color=sc; $('spdArc').style.stroke=sc;
+    if(this.safe && kmh>10 && YT_.pause()) this.toast('หยุดวิดีโอเพราะรถกำลังวิ่ง');
+    this.car.setLatLng(p); this.updateRotation();
+    if(this.follow) this.map.panTo(p,{animate:true,duration:.5});
+    if(this.route) this.updateRouteProgress();
+  },
+  bearing(a,b){ const r=Math.PI/180, y=Math.sin((b.lng-a.lng)*r)*Math.cos(b.lat*r),
+    x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lng-a.lng)*r);
+    return (Math.atan2(y,x)/r+360)%360; },
+  toggleSim(){
+    if(this.sim){ clearInterval(this.sim); this.sim=null; this.applyButtons(); return; }
+    let c=this.pos||this.map.getCenter(), ang=0, step=0;
+    const coords=this.route? this.route.getLatLngs():null;
+    this.sim=setInterval(()=>{
+      if(coords && step<coords.length){ const q=coords[step]; step+=2; this.onPos(q.lat,q.lng,13.9,null); }
+      else { ang+=4; const q=L.latLng(c.lat+0.004*Math.sin(ang*Math.PI/180), c.lng+0.004*Math.cos(ang*Math.PI/180)); this.onPos(q.lat,q.lng,11.1,null); }
+    },1000);
+    this.applyButtons(); this.toast('เปิดจำลอง GPS');
+  },
+
+  /* ---------------- ค้นหา + นำทาง ---------------- */
+  async search(){
+    const q=$('searchInput').value.trim(); if(!q) return;
+    const box=$('results'); box.style.display='block'; box.innerHTML='<div>กำลังค้นหา…</div>';
+    try{
+      const c=this.pos||this.map.getCenter();
+      const url=`https://nominatim.openstreetmap.org/search?format=json&limit=8&accept-language=th&countrycodes=th&q=${encodeURIComponent(q)}&viewbox=${c.lng-1},${c.lat+1},${c.lng+1},${c.lat-1}`;
+      const r=await (await fetch(url)).json();
+      box.innerHTML='';
+      if(!r.length){ box.innerHTML='<div>ไม่พบผลลัพธ์</div>'; return; }
+      r.forEach(x=>{ const d=document.createElement('div'); d.textContent=x.display_name;
+        d.onclick=()=>{ box.style.display='none'; $('searchInput').blur(); this.routeTo(L.latLng(+x.lat,+x.lon), x.display_name.split(',')[0]); };
+        box.appendChild(d); });
+    }catch(e){ box.innerHTML='<div>ค้นหาไม่ได้ (ไม่มีอินเทอร์เน็ต?)</div>'; }
+  },
+  async routeTo(dest,name){
+    $('results').style.display='none';
+    if(this.destMarker) this.map.removeLayer(this.destMarker);
+    this.destMarker=L.marker(dest).addTo(this.map).bindPopup(name);
+    const from=this.pos||this.map.getCenter();
+    try{
+      const url=`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&steps=true`;
+      const j=await (await fetch(url)).json();
+      if(!j.routes||!j.routes.length) throw 0;
+      const rt=j.routes[0];
+      if(this.route) this.map.removeLayer(this.route);
+      const ll=rt.geometry.coordinates.map(c=>[c[1],c[0]]);
+      if(this.routeGlow) this.map.removeLayer(this.routeGlow);
+      this.routeGlow=L.polyline(ll,{color:'#7a5cff',weight:14,opacity:.35}).addTo(this.map);
+      this.route=L.polyline(ll,{color:'#5cc0ff',weight:7,opacity:.95,className:'route-flow'}).addTo(this.map);
+      this.routeSteps=rt.legs[0].steps.map(s=>({loc:L.latLng(s.maneuver.location[1],s.maneuver.location[0]), text:this.stepText(s)}));
+      this.routeTotal={d:rt.distance,t:rt.duration};
+      this.follow=false; this.map.fitBounds(this.route.getBounds(),{padding:[40,40]}); this.applyButtons();
+      $('routeInfo').style.display='flex'; this.showRouteInfo(rt.distance, rt.duration, this.routeSteps[0]?.text||'');
+      setTimeout(()=>{ this.follow=true; this.applyButtons(); if(this.pos) this.map.setView(this.pos,16); }, 4000);
+    }catch(e){ this.toast('หาเส้นทางไม่ได้'); }
+  },
+  stepText(s){
+    const m={left:'เลี้ยวซ้าย',right:'เลี้ยวขวา','slight left':'เบี่ยงซ้าย','slight right':'เบี่ยงขวา','sharp left':'หักซ้าย','sharp right':'หักขวา',uturn:'กลับรถ',straight:'ตรงไป'};
+    const t={depart:'ออกเดินทาง',arrive:'ถึงที่หมาย',roundabout:'เข้าวงเวียน',rotary:'เข้าวงเวียน'};
+    let txt=t[s.maneuver.type]|| m[s.maneuver.modifier] || 'ไปต่อ';
+    if(s.name && s.maneuver.type!=='arrive') txt+=' · '+s.name;
+    return txt;
+  },
+  showRouteInfo(d,t,step){
+    $('rDist').textContent = d>=1000 ? (d/1000).toFixed(1)+' กม.' : Math.round(d)+' ม.';
+    const eta=new Date(Date.now()+t*1000);
+    $('rTime').textContent = Math.round(t/60)+' นาที · ถึง '+eta.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    $('rStep').textContent = step;
+  },
+  updateRouteProgress(){
+    // หาสเต็ปถัดไปที่ใกล้ที่สุด แล้วประเมินระยะที่เหลือตามสัดส่วน
+    const p=this.pos; let best=0, bd=1e12;
+    this.routeSteps.forEach((s,i)=>{ const d=p.distanceTo(s.loc); if(d<bd){bd=d;best=i;} });
+    const next=this.routeSteps[Math.min(best+ (bd<25?1:0), this.routeSteps.length-1)];
+    const left=p.distanceTo(this.destMarker.getLatLng());
+    if(left<30){ this.toast('🏁 ถึงที่หมายแล้ว',4000); this.clearRoute(); return; }
+    const ratio=Math.min(1,left/Math.max(1,this.routeTotal.d));
+    this.showRouteInfo(Math.max(left,this.routeTotal.d*ratio), this.routeTotal.t*ratio, next ? `${Math.round(p.distanceTo(next.loc))} ม. → ${next.text}` : '');
+  },
+  clearRoute(){ if(this.route) this.map.removeLayer(this.route); if(this.routeGlow){ this.map.removeLayer(this.routeGlow); this.routeGlow=null; } if(this.destMarker) this.map.removeLayer(this.destMarker);
+    this.route=null; this.destMarker=null; this.routeSteps=[]; $('routeInfo').style.display='none'; },
+
+  toggleSafe(){ this.safe=!this.safe; Store.set('safe',this.safe); this.applyButtons(); },
+
+  /* ---------------- เปิดจอค้าง ---------------- */
+  async requestWake(){ try{ if('wakeLock' in navigator){ this.wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){} },
+  toggleWake(){ this.wantWake=!this.wantWake; Store.set('wake',this.wantWake);
+    if(this.wantWake) this.requestWake(); else if(this.wakeLock){ this.wakeLock.release(); this.wakeLock=null; } this.applyButtons(); },
+
+  applyButtons(){
+    $('btnFollow').classList.toggle('on',this.follow);
+    const s=(id,on)=>{ const b=$(id); if(!b) return; b.classList.toggle('on',on); if(['btnRotate','btnWake','btnSim','btnSafe'].includes(id)) b.textContent=on?'เปิด':'ปิด'; };
+    s('btnRotate',this.headingUp); s('btnWake',this.wantWake); s('btnSim',!!this.sim); s('btnSafe',this.safe);
+  }
+};
+
+// เอฟเฟกต์คลื่นเมื่อแตะปุ่ม
+document.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const r=b.getBoundingClientRect(), s=Math.max(r.width,r.height), x=document.createElement('span');
+  x.className='ripple'; x.style.cssText=`width:${s}px;height:${s}px;left:${e.clientX-r.left-s/2}px;top:${e.clientY-r.top-s/2}px`;
+  b.appendChild(x); setTimeout(()=>x.remove(),600);
+});
+window.addEventListener('load',()=>{ try{ App.init(); }catch(e){ console.error(e); } setTimeout(()=>$('splash').classList.add('hide'),900); });
+</script>
+</body>
+</html>
